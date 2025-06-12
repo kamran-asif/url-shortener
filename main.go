@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -47,11 +49,45 @@ func getURL(id string) (URL, error) {
 	return url, nil
 }
 
+func validateURL(inputURL string) (string, error) {
+	// add https:// if no scheme is provided
+	if !strings.HasPrefix(inputURL, "http://") && !strings.HasPrefix(inputURL, "https://") {
+		inputURL = "https://" + inputURL
+	}
+
+	// parse the URL
+	parsedURL, err := url.Parse(inputURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %v", err)
+	}
+
+	// Check if the URL has a host
+	if parsedURL.Host == "" {
+		return "", errors.New("URL must have a host")
+	}
+
+	return parsedURL.String(), nil
+}
+
+func enableCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
 func RootPageHandler(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	fmt.Fprintf(w, "Hello World!")
 }
 
 func ShortURLHandler(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	var data struct {
 		URL string `json:"url"`
 	}
@@ -61,17 +97,30 @@ func ShortURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL := createShortURL(data.URL)
+	// validate the URL
+	validatedURL, err := validateURL(data.URL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	shortURL := createShortURL(validatedURL)
 	response := struct {
-		ShortURL string `json:"short_url"`
+		ShortURL    string `json:"short_url"`
+		OriginalURL string `json:"original_url"`
 	}{
-		ShortURL: shortURL,
+		ShortURL:    shortURL,
+		OriginalURL: validatedURL,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
 func RedirectURLHandler(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	id := r.URL.Path[len("/redirect/"):]
 	url, err := getURL(id)
 	if err != nil {
@@ -84,7 +133,7 @@ func RedirectURLHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	fmt.Println("Starting the server...")
 
-	// Set up routes
+	// set up routes
 	http.HandleFunc("/", RootPageHandler)
 	http.HandleFunc("/shorten", ShortURLHandler)
 	http.HandleFunc("/redirect/", RedirectURLHandler)
