@@ -50,12 +50,12 @@ func getURL(id string) (URL, error) {
 }
 
 func validateURL(inputURL string) (string, error) {
-	// Add https:// if no scheme is provided
+	// add https:// if no scheme is provided
 	if !strings.HasPrefix(inputURL, "http://") && !strings.HasPrefix(inputURL, "https://") {
 		inputURL = "https://" + inputURL
 	}
 
-	// Parse the URL
+	// parse the URL
 	parsedURL, err := url.Parse(inputURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %v", err)
@@ -97,7 +97,7 @@ func ShortURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the URL
+	// validate the URL
 	validatedURL, err := validateURL(data.URL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
